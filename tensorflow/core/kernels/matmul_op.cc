@@ -24,6 +24,14 @@ limitations under the License.
 #include "tensorflow/core/framework/register_types.h"
 #include "tensorflow/core/kernels/fill_functor.h"
 #include "tensorflow/core/util/matmul_autotune.h"
+
+// renderscript support
+#include <fstream>
+#include <time.h>
+#include "tensorflow/contrib/android_renderscript_ops/jni/rsMatmul.h"
+#include "tensorflow/contrib/android_renderscript_ops/utils/android_utils.h"
+// renderscript support
+
 #if GOOGLE_CUDA
 #include "cuda/include/cuda.h"
 #include "tensorflow/core/kernels/gpu_utils.h"
@@ -493,8 +501,21 @@ class MatMulOp : public OpKernel {
       return;
     }
 
-    LaunchMatMul<Device, T, USE_CUBLAS>::launch(
-        ctx, a, b, dim_pair, &algorithms_, use_autotune_, out);
+    //////////////////////// renderscript support
+    timespec start, finish;
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    
+    androidrs::matmul::rsMatmul_sgemm(static_cast<void*>(const_cast<char*>(a.tensor_data().data())), 0, 
+                                  static_cast<void*>(const_cast<char*>(b.tensor_data().data())), 0, 
+                                  static_cast<void*>(const_cast<char*>(out->tensor_data().data())), 
+                                  a.dim_size(0), b.dim_size(1), a.dim_size(1), 1, 0);
+    //////////////////////// renderscript support
+
+    //LaunchMatMul<Device, T, USE_CUBLAS>::launch(
+    //    ctx, a, b, dim_pair, &algorithms_, use_autotune_, out);
+	//    clock_gettime(CLOCK_MONOTONIC, &finish);
+    float matmul_time = (finish.tv_sec - start.tv_sec) + ((float)(finish.tv_nsec - start.tv_nsec)/1000000000.0f);
+    LOG(INFO)  << "Matmul consume time: " << (matmul_time) << " sec";
   }
 
  private:

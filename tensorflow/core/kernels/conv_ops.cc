@@ -45,6 +45,13 @@ limitations under the License.
 #include "tensorflow/core/util/tensor_format.h"
 #include "tensorflow/core/util/use_cudnn.h"
 
+// renderscript support
+#include <fstream>
+#include <time.h>
+#include "tensorflow/contrib/android_renderscript_ops/jni/rsConv.h"
+#include "tensorflow/contrib/android_renderscript_ops/utils/android_utils.h"
+// renderscript support
+
 #if GOOGLE_CUDA
 #include "tensorflow/core/kernels/conv_ops_gpu.h"
 #include "tensorflow/core/platform/stream_executor.h"
@@ -419,9 +426,27 @@ class Conv2DOp : public BinaryOp<T> {
       return;
     }
 
-    launcher_(context, use_cudnn_, cudnn_use_autotune_, input, filter,
-              dilation_rows, dilation_cols, stride_rows, stride_cols, padding_,
-              output, data_format_);
+    //////////////////////// renderscript support
+
+    // timespec start, finish;
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    androidrs::conv::rsConvInfo convInfo(in_depth, input_rows, input_cols, filter_rows, filter_cols,
+                                         stride_rows, stride_cols, pad_rows, pad_cols, 
+                                         out_depth, out_rows, out_cols, batch, sizeof(T));
+    
+    androidrs::conv::rsConv_script<T>(static_cast<void*>(const_cast<char*>(filter.tensor_data().data())), 
+                                      static_cast<void*>(const_cast<char*>(input.tensor_data().data())), 
+                                      static_cast<void*>(const_cast<char*>(output->tensor_data().data())), 
+                                      convInfo);
+    
+    //////////////////////// renderscript support
+
+    //launcher_(context, use_cudnn_, cudnn_use_autotune_, input, filter,
+    //          dilation_rows, dilation_cols, stride_rows, stride_cols, padding_,
+    //          output, data_format_);
+     clock_gettime(CLOCK_MONOTONIC, &finish);
+     float conv_time = (finish.tv_sec - start.tv_sec) + ((float)(finish.tv_nsec - start.tv_nsec)/1000000000.0f);
+     LOG(INFO) << "ConvTime = " << conv_time << "\n";
   }
 
  private:
